@@ -29,6 +29,7 @@ public class Weather
 public class Cell : MonoBehaviour
 {
     public Weather weather;
+    public WindZone windZone;
     // Start is called before the first frame update
 
     public float get_cell_influence(float wind_direction, float wind_speed, float angle)
@@ -77,6 +78,10 @@ public class Cell : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-
+        windZone.transform.eulerAngles = new Vector3(
+            windZone.transform.eulerAngles.x,
+            weather.wind_direction,
+            windZone.transform.eulerAngles.z
+        );
     }
 }

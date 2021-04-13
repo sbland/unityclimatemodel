@@ -53,8 +53,9 @@ public class CellManager : MonoBehaviour
                 int xpos = x * cell_width;
                 int ypos = y * cell_height;
                 objToSpawn.transform.position = new Vector3(xpos, 0, ypos);
-                Cell new_cell = objToSpawn.AddComponent(typeof(Cell)) as Cell;
-                cells[x, y] = new_cell;
+
+                Cell cell = objToSpawn.GetComponent(typeof(Cell)) as Cell;
+                cells[x, y] = cell;
                 neighbours[x, y] = get_neighbours(x, y, width, height);
             }
         }
