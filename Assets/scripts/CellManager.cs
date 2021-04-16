@@ -59,6 +59,7 @@ public class CellManager : MonoBehaviour
                 neighbours[x, y] = get_neighbours(x, y, width, height);
             }
         }
+        cell_template.SetActive(false);
     }
 
     // Update is called once per frame
