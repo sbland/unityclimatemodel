@@ -79,7 +79,7 @@ public class CellManager : MonoBehaviour
                 {
                     cell_neighbours[i] = cells[neighbour_i[i][0], neighbour_i[i][1]];
                 }
-                cell.update_cell(cell_neighbours);
+                cell.UpdateCell(cell_neighbours);
             }
         }
     }

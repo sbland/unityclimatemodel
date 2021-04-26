@@ -233,12 +233,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5e04c15cb7c504e47866f8fd5700c1c0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  debugme: 0
   weather:
     precipitation: 0
-    wind_speed: 0
-    wind_direction: 0
-    cloud_cover: 0
+    windSpeed: 0
+    windDirection: {x: 0, y: 0, z: 0}
+    cloudCover: 0
   windZone: {fileID: 1642913488}
+  isWindSource: 0
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0
@@ -361,7 +363,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5813a294e8cae564da292d0c97819b09, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  width: 2
+  width: 1
   height: 2
   cell_width: 10
   cell_height: 10
