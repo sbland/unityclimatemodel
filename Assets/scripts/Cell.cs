@@ -36,7 +36,7 @@ public class Cell : MonoBehaviour
 
     void UpdateColor() {
         var renderer = transform.GetComponent<Renderer>();
-        var strength = weather.airPressure / 100.0f;
+        var strength = weather.airPressure / 10.0f;
         renderer.material.SetColor("_Color", new Color(strength, 0.5f, 0.5f,1f));
     }
 

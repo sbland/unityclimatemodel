@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using System;
 
 
 [System.Serializable]
@@ -41,7 +42,8 @@ public class Weather
 // Container for transform properties so we don't need to use Unity Transform
 public static class WeatherHelpers
 {
-    const float AIR_FLOW_RATE = 1.0f;
+    const float AIR_FLOW_RATE = 0.005f;
+    const float AIR_DENSITY = 1.22f;
 
     public static Weather UpdateWeather(Weather localWeather, Weather[] nWeathers, Vector3[] nVectors, ITransform localTransform)
     {
@@ -49,23 +51,39 @@ public static class WeatherHelpers
         var nWindSpeeds = nWeathers.Select(n => n.windSpeed);
         var nAirPressures = nWeathers.Select(n => n.airPressure);
 
-        var newWind = localWeather.isWindSource
-            ? (localWeather.windSpeed, localWeather.windDirection)
-            : WeatherHelpers.UpdateWind(
-                localTransform,
+        // OLD METHOD
+        // var (newWindSpeed, newWindDirection) = localWeather.isWindSource
+        //     ? (localWeather.windSpeed, localWeather.windDirection)
+        //     : WeatherHelpers.UpdateWind(
+        //         localTransform,
+        //         nWindDirections.ToArray(),
+        //         nWindSpeeds.ToArray(),
+        //         nVectors);
+        if(localWeather.isWindSource) {
+            return localWeather;
+        }
+        Weather newWeather = localWeather.ShallowCopy();
+
+        var (newWindSpeed, newWindDirection) = WeatherHelpers.UpdateWind(
+                localWeather.airPressure,
+                nAirPressures.ToArray(),
+                localWeather.windDirection,
+                localWeather.windSpeed,
                 nWindDirections.ToArray(),
                 nWindSpeeds.ToArray(),
                 nVectors);
 
-        Weather newWeather = localWeather.ShallowCopy();
-        newWeather.windSpeed = newWind.Item1;
-        newWeather.windDirection = newWind.Item2;
+        newWeather.windSpeed = newWindSpeed;
+        newWeather.windDirection = newWindDirection;
+
         newWeather.airPressure = UpdateAirPressure(
             localWeather.airPressure,
             nAirPressures.ToArray(),
             localWeather.windDirection,
             localWeather.windSpeed,
-            nWindDirections.ToArray()
+            nWindDirections.ToArray(),
+            nWindSpeeds.ToArray(),
+            nVectors
         );
 
         return newWeather;
@@ -83,10 +101,11 @@ public static class WeatherHelpers
         float[] nPressures,
         Vector3 initialWindDir,
         float initialWindMomentum,
-        Vector3[] nWind
+        Vector3[] nWindDir,
+        float[] nWindSpeeds,
+        Vector3[] nVectors
     )
     {
-
         // First we find the imaginary 3d angle of the current cell on the "Air pressure plane"
         // Example: Local AP is 1 North plane has AP of 2 and South plane has 1
 
@@ -101,22 +120,50 @@ public static class WeatherHelpers
         // apply the force of air pressure difference.
 
         // Air pressure change
-        float newPressure = initialPressure;
-        // TODO: Check if we should use newPressure for each cell calculation
-        foreach (var p in nPressures)
-        {
-            float pressureDiff = newPressure - p;
-            float flow = AIR_FLOW_RATE * pressureDiff;
-            newPressure -= flow;
-        }
+
+        // Get increased pressure from surrounding flows
+        // The increase pressure is determinded by air flow * angleDiff / 90 if angleDiff < 90 else 0;
+        // TODO: make sure wind contains magnitude
+        // TODO Make sure nVector direction is curr cell to neighbour
+        // IEnumerable<Vector3> netAngles = angles.Select(a => -Vector3.Normalize(a));
+        // IEnumerable<Vector3> diffDirections = windDirections.Zip(netAngles, (wind, angle) => Vector3.Normalize(wind - angle)).ToArray();
+        // IEnumerable<Vector3> magDirection = diffDirections.Zip(windSpeeds, (wind, speed) => wind * speed).ToArray();
+        var angleDiff = nVectors.Zip(nWindDir, (angle, wind) => Vector3.Angle(-angle, wind));
+        var angleCapped = angleDiff.Select(angleDiff => Math.Max(0, Math.Min(90,angleDiff)));
+        var magIncreasedPressure = angleCapped.Select(angleDiff => (90 - angleDiff)/90);
+        
+
+        
+        // TODO: Make sure speed is in volume per second.
+        var increasedPressure = magIncreasedPressure
+            .Zip(nWindSpeeds, (influence, speed) => influence * speed * AIR_FLOW_RATE)
+            .Aggregate(0.0f, (acc, v) => acc + v);
+        float newPressure = initialPressure + increasedPressure - (initialWindMomentum * AIR_FLOW_RATE * initialPressure);
+
+
+        
+
+        // foreach (var p in nPressures)
+        // {
+        //     float pressureDiff = newPressure - p;
+        //     float flow = AIR_FLOW_RATE * pressureDiff;
+        //     newPressure -= flow;
+        // }
         return newPressure;
     }
 
     public static (float, Vector3) UpdateWind(
-        ITransform t,
-        Vector3[] windDirections,
-        float[] windSpeeds,
-        Vector3[] angles
+        // ITransform t,
+        // Vector3[] windDirections,
+        // float[] windSpeeds,
+        // Vector3[] angles
+        float initialPressure,
+        float[] nPressures,
+        Vector3 initialWindDir,
+        float initialWindMomentum,
+        Vector3[] nWindDir,
+        float[] nWindSpeeds,
+        Vector3[] nVectors
     )
     {
         // TODO: Should take into account distance
@@ -127,24 +174,45 @@ public static class WeatherHelpers
         //     Debug.Log(i);
         // }
 
-        IEnumerable<Vector3> netAngles = angles.Select(a => Vector3.Normalize(a));
-        var netAngleDebug = angles.Select(a => Vector3.Normalize(a)).ToArray();
-        IEnumerable<Vector3> diffDirections = windDirections.Zip(netAngles, (wind, angle) => Vector3.Normalize(wind - angle)).ToArray();
-        IEnumerable<Vector3> magDirection = diffDirections.Zip(windSpeeds, (wind, speed) => wind * speed).ToArray();
-        Vector3 sumDirection = magDirection.Aggregate((acc, dir) => acc + dir);
-        Vector3 averageDirection = sumDirection; // / windDirections.Length;
-        Vector3 normalDirection = Vector3.Normalize(averageDirection);
-        Debug.DrawRay(t.position, normalDirection, Color.blue, 0.1f);
-        Vector3 normalAngle = Vector3.Cross(normalDirection, t.up);
-        Debug.DrawRay(t.position, normalAngle, Color.red, 0.1f);
-        Vector3 normalAngleB = Vector3.Cross(normalDirection, t.forward);
-        Vector3 normalAngleC = Vector3.Cross(normalDirection, normalAngle);
-        Debug.DrawRay(t.position, normalAngleB, Color.green, 0.1f);
-        Debug.DrawRay(t.position, normalAngleC, Color.yellow, 0.1f);
-        Quaternion q = Quaternion.FromToRotation(t.forward, normalDirection);
-        float magnitude = Vector3.Magnitude(averageDirection);
+        
 
-        return (magnitude, normalDirection);
+        // Get acceleration towards each direction
+        // TODO: Implement this 
+        var pDiff = nPressures.Select(nP => initialPressure - nP);
+        var accels = pDiff.Select(pd => -pd/AIR_DENSITY);
+        var accelDir = accels.Zip(nVectors, (accel,vec) => accel * -vec);
+        // TODO: Check what happens when flow in all directions
+        var averageAccel = accelDir.Aggregate((accelDir, dir) => accelDir + dir);
+        var newWind =  AIR_FLOW_RATE * averageAccel * initialPressure;
+        // var newWind = (initialWindDir * initialWindMomentum)  + AIR_FLOW_RATE * averageAccel * initialPressure;
+        float magnitude = Vector3.Magnitude(newWind);
+        Vector3 direction = Vector3.Normalize(newWind);
+        return (magnitude, direction);
+
+        // var flows = nPressures.Select(nP => AIR_FLOW_RATE * (initialPressure - nP));
+        // var flowVectors = flows.Zip(nVectors, (flow, nVector) => flow * nVector);
+        // Vector3 sumDirection = magDirection.Aggregate((acc, dir) => acc + dir);
+
+
+        //  OLD METHOD
+        // IEnumerable<Vector3> netAngles = angles.Select(a => Vector3.Normalize(a));
+        // var netAngleDebug = angles.Select(a => Vector3.Normalize(a)).ToArray();
+        // IEnumerable<Vector3> diffDirections = windDirections.Zip(netAngles, (wind, angle) => Vector3.Normalize(wind - angle)).ToArray();
+        // IEnumerable<Vector3> magDirection = diffDirections.Zip(windSpeeds, (wind, speed) => wind * speed).ToArray();
+        // Vector3 sumDirection = magDirection.Aggregate((acc, dir) => acc + dir);
+        // Vector3 averageDirection = sumDirection; // / windDirections.Length;
+        // Vector3 normalDirection = Vector3.Normalize(averageDirection);
+        // Debug.DrawRay(t.position, normalDirection, Color.blue, 0.1f);
+        // Vector3 normalAngle = Vector3.Cross(normalDirection, t.up);
+        // Debug.DrawRay(t.position, normalAngle, Color.red, 0.1f);
+        // Vector3 normalAngleB = Vector3.Cross(normalDirection, t.forward);
+        // Vector3 normalAngleC = Vector3.Cross(normalDirection, normalAngle);
+        // Debug.DrawRay(t.position, normalAngleB, Color.green, 0.1f);
+        // Debug.DrawRay(t.position, normalAngleC, Color.yellow, 0.1f);
+        // Quaternion q = Quaternion.FromToRotation(t.forward, normalDirection);
+        // float magnitude = Vector3.Magnitude(averageDirection);
+
+        // return (magnitude, normalDirection);
     }
 
 }
