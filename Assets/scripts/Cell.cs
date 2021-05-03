@@ -34,9 +34,16 @@ public class Cell : MonoBehaviour
         // );
     }
 
+    void UpdateColor() {
+        var renderer = transform.GetComponent<Renderer>();
+        var strength = weather.airPressure / 100.0f;
+        renderer.material.SetColor("_Color", new Color(strength, 0.5f, 0.5f,1f));
+    }
+
     // Update is called once per frame
     void Update()
     {
+        UpdateColor();
         windZone.transform.LookAt(windZone.transform.position + weather.windDirection);
         if (weather.isWindSource)
         {
@@ -54,6 +61,7 @@ public class Cell : MonoBehaviour
                 //     0.1f,
                 //     0.1f
                 //     );
+
             }
         }
     }
